@@ -5,8 +5,9 @@
  **/
 
 #include "gnd/gnd-multi-platform.h"
-
 #include "gnd/gnd_ls_coordtf.hpp"
+
+#include <stdio.h>
 
 #include "ros/ros.h"
 #include "sensor_msgs/LaserScan.h"
@@ -76,6 +77,10 @@ int main(int argc, char **argv) {
 
 	gnd::matrix::fixed<4,4> mat_coordtf;
 
+	// debug
+	FILE *fp_textlog = 0;
+
+
 	{ // ---> initialize
 		int phase = 0;
 		ros::Time time_start;
@@ -87,6 +92,9 @@ int main(int argc, char **argv) {
 			fprintf(stdout, "   %d. calculate coordinate transform matrix \n", ++phase);
 			fprintf(stdout, "   %d. initialize laser-scan topic subscriber\n", ++phase);
 			fprintf(stdout, "   %d. initialize point-cloud topic publisher\n", ++phase);
+			if( node_config.text_log.value[0] ) {
+				fprintf(stdout, "   %d. create text log file\n", ++phase);
+			}
 			fprintf(stdout, "\n");
 		} // <--- show initialize phase task
 
@@ -114,8 +122,9 @@ int main(int argc, char **argv) {
 						node_config.axis_vector_front.value[0], node_config.axis_vector_front.value[1], node_config.axis_vector_front.value[2],
 						node_config.axis_vector_upside.value[0], node_config.axis_vector_upside.value[1], node_config.axis_vector_upside.value[2]);
 
+				fprintf(stdout, "    ... coordinate transform matrix:\n");
+				gnd::matrix::show(stdout, &mat_coordtf, "%.03lf", "        ");
 				fprintf(stdout, "    ... ok, show matrix\n");
-				gnd::matrix::show(stdout, &mat_coordtf, "%.03lf", "    ");
 			}
 		} // <--- calculate coordinate transform matrix
 
@@ -146,7 +155,6 @@ int main(int argc, char **argv) {
 
 		// ---> initialize pointcloud publisher
 		if( ros::ok() ) {
-
 			fprintf(stdout, "\n");
 			fprintf(stdout, " => initialize point-cloud topic publisher\n");
 
@@ -170,6 +178,23 @@ int main(int argc, char **argv) {
 				fprintf(stdout, "    ... ok\n");
 			}
 		} // <--- initialize pointcloud publisher
+
+		// --->
+		if( ros::ok() && node_config.text_log.value[0] ) {
+			fprintf(stdout, "\n");
+			fprintf(stdout, "   %d. create text log file\n", ++phase);
+
+			if( !(fp_textlog = fopen(node_config.text_log.value, "w")) ){
+				fprintf(stderr, "    ... error: fail to open \"%s\"\n", node_config.text_log.value );
+				ros::shutdown();
+			}
+			else {
+				fprintf(fp_textlog, "#[1. sequence id] [2. x] [3. y]\n");
+				fprintf(stderr, "    ... ok, create file \"%s\"\n", node_config.text_log.value );
+			}
+		}
+		// <---
+
 	} // <--- initialize
 
 
@@ -183,10 +208,10 @@ int main(int argc, char **argv) {
 		double time_display;
 		const double cycle_display = 1.0;
 
-		int cnt_laserscan_disp = 0;
+		int cnt_laserscan_display = 0;
 		int cnt_pointcloud_disp = 0;
 
-		int nline_show = 0;
+		int nline_display = 0;
 
 		{ // ---> initial intensity channel
 			msg_intensity_ini.name = "intenisty";
@@ -212,7 +237,7 @@ int main(int argc, char **argv) {
 
 			// ---> coordinate transform and publish
 			if( msgreader_laserscan.copy_next( &msg_laserscan, msg_laserscan.header.seq) == 0) {
-				cnt_laserscan_disp++;
+				cnt_laserscan_display++;
 				// ---> except no-data case
 				if( msg_laserscan.ranges.size() > 0 ) {
 					int i = 0;
@@ -248,6 +273,11 @@ int main(int argc, char **argv) {
 						if( msg_pointcloud.channels.size() == msg_laserscan.ranges.size() ) {
 							msg_pointcloud.channels[i].values[0] = msg_laserscan.intensities[i];
 						}
+
+						// text log
+						if( fp_textlog ) {
+							fprintf( fp_textlog, "%d %lf %lf %lf %lf\n", msg_pointcloud.header.seq + 1, point_src[0], msg_pointcloud.points[i].y, point_src[0], point_src[1] );
+						}
 					} // <--- coordinate transform and set value
 
 					{ // ---> set header
@@ -264,22 +294,22 @@ int main(int argc, char **argv) {
 			// ---> status display
 			if( node_config.status_display.value && time_current > time_display ) {
 				// clear
-				if( nline_show ) {
-					fprintf(stderr, "\x1b[%02dA", nline_show);
-					nline_show = 0;
+				if( nline_display ) {
+					fprintf(stderr, "\x1b[%02dA", nline_display);
+					nline_display = 0;
 				}
 
-				nline_show++; fprintf(stderr, "\x1b[K-------------------- \x1b[1m\x1b[36m%s\x1b[39m\x1b[0m --------------------\n", node_config.node_name.value);
-				nline_show++; fprintf(stderr, "\x1b[K  operating time : %6.01lf[sec]\n", time_current - time_start);
-				nline_show++; fprintf(stderr, "\x1b[K       subscribe : name \"%s\"\n", node_config.topic_name_laserscan.value );
-				nline_show++; fprintf(stderr, "\x1b[K                 : seq %d\n", msg_laserscan.header.seq );
-				nline_show++; fprintf(stderr, "\x1b[K                 : size %3d [num]\n", msg_laserscan.ranges.size() );
-				nline_show++; fprintf(stderr, "\x1b[K                 : rate %.2lf hz\n",  (double) cnt_laserscan_disp / cycle_display );
-				cnt_laserscan_disp = 0;
-				nline_show++; fprintf(stderr, "\x1b[K         publish : name \"%s\"\n", topic_name_pointcloud );
-				nline_show++; fprintf(stderr, "\x1b[K                 : seq %d\n", msg_pointcloud.header.seq );
-				nline_show++; fprintf(stderr, "\x1b[K                 : rate %4.01lf[hz]\n", (double) cnt_pointcloud_disp / cycle_display );
+				nline_display++; fprintf(stderr, "\x1b[K-------------------- \x1b[1m\x1b[36m%s\x1b[39m\x1b[0m --------------------\n", node_config.node_name.value);
+				nline_display++; fprintf(stderr, "\x1b[K operating time : %6.01lf[sec]\n", time_current - time_start);
+				nline_display++; fprintf(stderr, "\x1b[K    point cloud : topic name \"%s\" (publish)\n", topic_name_pointcloud );
+				nline_display++; fprintf(stderr, "\x1b[K                :        seq %d\n", msg_pointcloud.header.seq );
+				nline_display++; fprintf(stderr, "\x1b[K                :    publish %.01lf [Hz]\n", (double) cnt_pointcloud_disp / cycle_display );
 				cnt_pointcloud_disp = 0;
+				nline_display++; fprintf(stderr, "\x1b[K     laser scan : topic name \"%s\" (subscribe)\n", node_config.topic_name_laserscan.value );
+				nline_display++; fprintf(stderr, "\x1b[K                :        seq %d\n", msg_laserscan.header.seq );
+				nline_display++; fprintf(stderr, "\x1b[K                :       size %3d [num]\n", msg_laserscan.ranges.size() );
+				nline_display++; fprintf(stderr, "\x1b[K                :  subscribe %.01lf [Hz]\n",  (double) cnt_laserscan_display / cycle_display );
+				cnt_laserscan_display = 0;
 
 				time_display = gnd_loop_next(time_current, time_start, cycle_display);
 			} // <--- status display
@@ -290,6 +320,10 @@ int main(int argc, char **argv) {
 
 
 	{ // ---> finalize
+		if( fp_textlog ) {
+			fclose(fp_textlog);
+		}
+
 		fprintf(stderr, " ... fin\n");
 	} // <--- finalize
 
