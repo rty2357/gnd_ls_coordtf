@@ -24,13 +24,15 @@
 #include "gnd/gnd-util.h"
 
 // node config
-typedef gnd::ls_coordtf::node_config 						node_config_t;
+typedef gnd::ls_coordtf::node_config 							node_config_t;
 
 // objects for ros communication
-typedef sensor_msgs::LaserScan								msg_laserscan_t;
+typedef sensor_msgs::LaserScan									msg_laserscan_t;
 typedef gnd::rosutil::rosmsgs_reader_stamped<msg_laserscan_t>	msgreader_laserscan_t;
-typedef sensor_msgs::PointCloud								msg_pointcloud_t;
-typedef sensor_msgs::ChannelFloat32							msg_intensity_t;
+typedef sensor_msgs::PointCloud									msg_pointcloud_t;
+typedef sensor_msgs::PointCloud::_points_type::value_type		point_t;
+typedef sensor_msgs::ChannelFloat32								msg_intensity_t;
+typedef sensor_msgs::ChannelFloat32::_values_type::value_type	intensity_t;
 
 typedef struct {
 	char name[128];
@@ -219,7 +221,9 @@ int main(int argc, char **argv) {
 				msg_pointcloud.header.frame_id = node_config.coordinate_name.value;
 
 				msg_pointcloud.points.clear();
-				msg_pointcloud.channels.clear();
+				msg_pointcloud.channels.resize(1);
+				msg_pointcloud.channels[0].name = "intensity";
+				msg_pointcloud.channels[0].values.clear();
 
 				fprintf(stdout, "    ... ok\n");
 			}
@@ -243,7 +247,9 @@ int main(int argc, char **argv) {
 				topic_areas[i].msg.header.frame_id = node_config.coordinate_name.value;
 
 				topic_areas[i].msg.points.clear();
-				topic_areas[i].msg.channels.clear();
+				topic_areas[i].msg.channels.resize(1);
+				topic_areas[i].msg.channels[0].name = "intensity";
+				topic_areas[i].msg.channels[0].values.clear();
 			}
 			fprintf(stdout, "    ... ok\n");
 		} // <--- make each areas pointcloud publisher
@@ -269,22 +275,13 @@ int main(int argc, char **argv) {
 
 
 	if( ros::ok() ){ // ---> operate
-		msg_intensity_t msg_intensity_ini;
 
 		ros::Rate loop_rate(1000);
 		double time_current;
 		double time_start;
 		double time_display;
-
-		int cnt_laserscan_display = 0;
-		int cnt_pointcloud_disp = 0;
-
 		int nline_display = 0;
 
-		{ // ---> initial intensity channel
-			msg_intensity_ini.name = "intenisty";
-			msg_intensity_ini.values.resize(1, 0.0);
-		} // <--- initial intensity channel
 
 		{ // ---> initialize time
 			time_current = ros::Time::now().toSec();
@@ -307,35 +304,27 @@ int main(int argc, char **argv) {
 
 			// ---> coordinate transform and publish
 			if( msgreader_laserscan.copy_next( &msg_laserscan, msg_laserscan.header.seq) == 0) {
-				cnt_laserscan_display++;
 				// ---> except no-data case
 				if( msg_laserscan.ranges.size() > 0 ) {
-					int i = 0;
-					int j = 0;
-					int k = 0;
-					int cnt = 0;
+					unsigned int i = 0;
+					unsigned int j = 0;
+					unsigned int k = 0;
+					point_t ws_point;			// work space
 
-					msg_pointcloud.points.resize(msg_laserscan.ranges.size());
-					// init intensity
-					if( msg_laserscan.intensities.size() == msg_laserscan.ranges.size() ){
-						msg_pointcloud.channels.resize( msg_laserscan.ranges.size(), msg_intensity_ini );
-					}
-					else {
-						msg_pointcloud.channels.clear();
-					}
-
+					msg_pointcloud.points.clear();
+					msg_pointcloud.channels[0].values.clear();
 					for( j = 0; j < (signed)topic_areas.size(); j++ ) {
 						topic_areas[j].msg.points.clear();
-						topic_areas[j].msg.channels.clear();
+						topic_areas[j].msg.channels[0].values.clear();
 					}
 
 					// ---> coordinate transform and set value
-					cnt = 0;
 					for( i = 0; i < (signed)msg_laserscan.ranges.size(); i++ ) {
 						gnd::vector::fixed_column<4> point_src, point_dest;
 
-						// urg error
-						if( msg_laserscan.ranges[i] <= 0.02 ) {
+						// error
+						if( msg_laserscan.ranges[i] < msg_laserscan.range_min ||
+							msg_laserscan.ranges[i] > msg_laserscan.range_max) {
 							continue;
 						}
 
@@ -349,40 +338,40 @@ int main(int argc, char **argv) {
 						gnd::matrix::prod( &mat_coordtf, &point_src, &point_dest );
 
 						// set destination coordinate point
-						msg_pointcloud.points[i].x = point_dest[0];
-						msg_pointcloud.points[i].y = point_dest[1];
-						msg_pointcloud.points[i].z = point_dest[2];
+						ws_point.x = point_dest[0];
+						ws_point.y = point_dest[1];
+						ws_point.z = point_dest[2];
+						msg_pointcloud.points.push_back(ws_point);
 
 						// set intensity
-						if( msg_pointcloud.channels.size() == msg_laserscan.ranges.size() ) {
-							msg_pointcloud.channels[i].values[0] = msg_laserscan.intensities[i];
+						if( msg_laserscan.intensities.size() > i ) {
+							msg_pointcloud.channels[0].values.push_back(msg_laserscan.intensities[i]);
 						}
-						cnt++;
 
 						// ---> extract each areas data
 						for( j = 0; j < (signed)topic_areas.size(); j++ ) {
 							for( k = 0; k < (signed)node_config.areas[j].range.size(); k++ ){
-								if( msg_pointcloud.points[i].x > node_config.areas[j].range[k].upper[0] ) break;
-								if( msg_pointcloud.points[i].y > node_config.areas[j].range[k].upper[1] ) break;
-								if( msg_pointcloud.points[i].z > node_config.areas[j].range[k].upper[2] ) break;
-								if( msg_pointcloud.points[i].x < node_config.areas[j].range[k].lower[0] ) break;
-								if( msg_pointcloud.points[i].y < node_config.areas[j].range[k].lower[1] ) break;
-								if( msg_pointcloud.points[i].z < node_config.areas[j].range[k].lower[2] ) break;
+								if( ws_point.x > node_config.areas[j].range[k].upper[0] ) break;
+								if( ws_point.y > node_config.areas[j].range[k].upper[1] ) break;
+								if( ws_point.z > node_config.areas[j].range[k].upper[2] ) break;
+								if( ws_point.x < node_config.areas[j].range[k].lower[0] ) break;
+								if( ws_point.y < node_config.areas[j].range[k].lower[1] ) break;
+								if( ws_point.z < node_config.areas[j].range[k].lower[2] ) break;
 							}
 							if( k < (signed)node_config.areas[j].range.size() ) continue;
 							for( k = 0; k < (signed)node_config.areas[j].exception.size(); k++ ){
-								if( msg_pointcloud.points[i].x < node_config.areas[j].range[k].upper[0] &&
-									msg_pointcloud.points[i].x > node_config.areas[j].range[k].lower[0]) break;
-								if( msg_pointcloud.points[i].y < node_config.areas[j].range[k].upper[1] &&
-									msg_pointcloud.points[i].y > node_config.areas[j].range[k].lower[1]) break;
-								if( msg_pointcloud.points[i].z < node_config.areas[j].range[k].upper[2] &&
-									msg_pointcloud.points[i].z > node_config.areas[j].range[k].lower[2]) break;
+								if( ws_point.x < node_config.areas[j].range[k].upper[0] &&
+									ws_point.x > node_config.areas[j].range[k].lower[0]) break;
+								if( ws_point.y < node_config.areas[j].range[k].upper[1] &&
+									ws_point.y > node_config.areas[j].range[k].lower[1]) break;
+								if( ws_point.z < node_config.areas[j].range[k].upper[2] &&
+									ws_point.z > node_config.areas[j].range[k].lower[2]) break;
 							}
 							if( k < (signed)node_config.areas[j].exception.size() ) continue;
 
-							topic_areas[j].msg.points.push_back(msg_pointcloud.points[i]);
-							if( msg_pointcloud.channels.size() == msg_laserscan.ranges.size() ) {
-								topic_areas[j].msg.channels.push_back(msg_pointcloud.channels[i]);
+							topic_areas[j].msg.points.push_back(ws_point);
+							if( msg_laserscan.intensities.size() > i ) {
+								topic_areas[j].msg.channels[0].values.push_back( msg_laserscan.intensities[i] );
 							}
 						} // <--- extract each areas data
 
@@ -391,13 +380,6 @@ int main(int argc, char **argv) {
 							fprintf( fp_textlog, "%d %lf %lf %lf %lf\n", msg_pointcloud.header.seq + 1, point_src[0], msg_pointcloud.points[i].y, point_src[0], point_src[1] );
 						}
 					} // <--- coordinate transform and set value
-
-					{ // ---> resize
-						msg_pointcloud.points.resize(cnt);
-						if( msg_laserscan.intensities.size() == msg_laserscan.ranges.size() ){
-							msg_pointcloud.channels.resize( cnt );
-						}
-					} // <--- resize
 
 					{ // ---> set header
 						msg_pointcloud.header.seq++;
@@ -415,7 +397,6 @@ int main(int argc, char **argv) {
 						topic_areas[j].pub.publish(topic_areas[j].msg);
 					}
 
-					cnt_pointcloud_disp++;
 				} // <--- except no-data case
 			} // <--- coordinate transform and publish
 
@@ -430,18 +411,16 @@ int main(int argc, char **argv) {
 				nline_display++; fprintf(stderr, "\x1b[K-------------------- \x1b[1m\x1b[36m%s\x1b[39m\x1b[0m --------------------\n", node_config.node_name.value);
 				nline_display++; fprintf(stderr, "\x1b[K operating time : %6.01lf[sec]\n", time_current - time_start);
 				nline_display++; fprintf(stderr, "\x1b[K    point cloud : topic name \"%s\" (publish)\n", topic_name_pointcloud );
+				nline_display++; fprintf(stderr, "\x1b[K                :       size %3d [num]\n", msg_pointcloud.points.size() );
+				nline_display++; fprintf(stderr, "\x1b[K                :  intensity %s\n", msg_pointcloud.channels[0].values.size() == msg_pointcloud.points.size() ? "on" : "off" );
 				nline_display++; fprintf(stderr, "\x1b[K                :        seq %d\n", msg_pointcloud.header.seq );
-				nline_display++; fprintf(stderr, "\x1b[K                :    publish %d [cnt]\n", cnt_pointcloud_disp );
-				cnt_pointcloud_disp = 0;
 				if( topic_areas.size() > 0 ) {
 					nline_display++; fprintf(stderr, "\x1b[K    point cloud : topic name \"%s\" (publish)\n", topic_areas[0].name );
 					nline_display++; fprintf(stderr, "\x1b[K                :       size %d\n", topic_areas[0].msg.points.size() );
 				}
 				nline_display++; fprintf(stderr, "\x1b[K     laser scan : topic name \"%s\" (subscribe)\n", node_config.topic_name_laserscan.value );
-				nline_display++; fprintf(stderr, "\x1b[K                :        seq %d\n", msg_laserscan.header.seq );
 				nline_display++; fprintf(stderr, "\x1b[K                :       size %3d [num]\n", msg_laserscan.ranges.size() );
-				nline_display++; fprintf(stderr, "\x1b[K                :  subscribe %d [cnt]\n", cnt_laserscan_display );
-				cnt_laserscan_display = 0;
+				nline_display++; fprintf(stderr, "\x1b[K                :        seq %d\n", msg_laserscan.header.seq );
 
 				time_display = gnd_loop_next(time_current, time_start, node_config.period_cui_status_display.value);
 			} // <--- status display
