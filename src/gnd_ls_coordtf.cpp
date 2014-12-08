@@ -66,8 +66,8 @@ int main(int argc, char **argv) {
 				int j = 0;
 				while( j < (signed)node_config.areas[i].range.size() ) {
 					if( node_config.areas[i].range[j].upper[0] < node_config.areas[i].range[j].lower[0] ||
-						node_config.areas[i].range[j].upper[1] < node_config.areas[i].range[j].lower[1] ||
-						node_config.areas[i].range[j].upper[2] < node_config.areas[i].range[j].lower[2] ) {
+							node_config.areas[i].range[j].upper[1] < node_config.areas[i].range[j].lower[1] ||
+							node_config.areas[i].range[j].upper[2] < node_config.areas[i].range[j].lower[2] ) {
 						node_config.areas[i].range.erase(j);
 					}
 					else {
@@ -77,8 +77,8 @@ int main(int argc, char **argv) {
 
 				while( j < (signed)node_config.areas[i].exception.size() ) {
 					if( node_config.areas[i].exception[j].upper[0] < node_config.areas[i].exception[j].lower[0] ||
-						node_config.areas[i].exception[j].upper[1] < node_config.areas[i].exception[j].lower[1] ||
-						node_config.areas[i].exception[j].upper[2] < node_config.areas[i].exception[j].lower[2] ) {
+							node_config.areas[i].exception[j].upper[1] < node_config.areas[i].exception[j].lower[1] ||
+							node_config.areas[i].exception[j].upper[2] < node_config.areas[i].exception[j].lower[2] ) {
 						node_config.areas[i].exception.erase(j);
 					}
 					else {
@@ -113,7 +113,6 @@ int main(int argc, char **argv) {
 	msg_laserscan_t				msg_laserscan;
 	msgreader_laserscan_t		msgreader_laserscan;
 
-	char 						topic_name_pointcloud[128];
 	ros::Publisher				pub_pointcloud;
 	msg_pointcloud_t			msg_pointcloud;
 
@@ -151,28 +150,23 @@ int main(int argc, char **argv) {
 			fprintf(stdout, "\n");
 			fprintf(stdout, " => calculate coordinate transform matrix\n");
 
-			if( !node_config.coordinate_name.value[0] ) {
-				fprintf(stderr, "    ... error: coordinate name is null\n");
-				ros::shutdown();
-			}
-			else {
-				fprintf(stdout, "    ... coordinate name \"%s\"\n", node_config.coordinate_name.value);
-				fprintf(stdout, "        origin: %.03lf, %.03lf, %.03lf\n",
-						node_config.coordinate_origin.value[0], node_config.coordinate_origin.value[1], node_config.coordinate_origin.value[2]);
-				fprintf(stdout, "         front: %.03lf, %.03lf, %.03lf\n",
-						node_config.axis_vector_front.value[0], node_config.axis_vector_front.value[1], node_config.axis_vector_front.value[2]);
-				fprintf(stdout, "        upside: %.03lf, %.03lf, %.03lf\n",
-						node_config.axis_vector_upside.value[0], node_config.axis_vector_upside.value[1], node_config.axis_vector_upside.value[2]);
+			fprintf(stdout, "    ... defined coordinate\n" );
+			fprintf(stdout, "        origin: %.03lf, %.03lf, %.03lf\n",
+					node_config.coordinate_origin.value[0], node_config.coordinate_origin.value[1], node_config.coordinate_origin.value[2]);
+			fprintf(stdout, "         front: %.03lf, %.03lf, %.03lf\n",
+					node_config.axis_vector_front.value[0], node_config.axis_vector_front.value[1], node_config.axis_vector_front.value[2]);
+			fprintf(stdout, "        upside: %.03lf, %.03lf, %.03lf\n",
+					node_config.axis_vector_upside.value[0], node_config.axis_vector_upside.value[1], node_config.axis_vector_upside.value[2]);
 
-				gnd::matrix::coordinate_converter(&mat_coordtf,
-						node_config.coordinate_origin.value[0], node_config.coordinate_origin.value[1], node_config.coordinate_origin.value[2],
-						node_config.axis_vector_front.value[0], node_config.axis_vector_front.value[1], node_config.axis_vector_front.value[2],
-						node_config.axis_vector_upside.value[0], node_config.axis_vector_upside.value[1], node_config.axis_vector_upside.value[2]);
+			gnd::matrix::coordinate_converter(&mat_coordtf,
+					node_config.coordinate_origin.value[0], node_config.coordinate_origin.value[1], node_config.coordinate_origin.value[2],
+					node_config.axis_vector_front.value[0], node_config.axis_vector_front.value[1], node_config.axis_vector_front.value[2],
+					node_config.axis_vector_upside.value[0], node_config.axis_vector_upside.value[1], node_config.axis_vector_upside.value[2]);
 
-				fprintf(stdout, "    ... coordinate transform matrix:\n");
-				gnd::matrix::show(stdout, &mat_coordtf, "%.03lf", "        ");
-				fprintf(stdout, "    ... ok, show matrix\n");
-			}
+			fprintf(stdout, "    ... coordinate transform matrix:\n");
+			gnd::matrix::show(stdout, &mat_coordtf, "%.03lf", "        ");
+			fprintf(stdout, "    ... ok, show matrix\n");
+
 		} // <--- calculate coordinate transform matrix
 
 
@@ -193,7 +187,7 @@ int main(int argc, char **argv) {
 				msgreader_laserscan.allocate(400);
 
 				// subscribe
-				subsc_laserscan = nh_ros.subscribe(node_config.topic_name_laserscan.value, 400,
+				subsc_laserscan = nh_ros.subscribe(node_config.topic_name_laserscan.value, 40,
 						&msgreader_laserscan_t::rosmsg_read,
 						msgreader_laserscan.reader_pointer() );
 				fprintf(stdout, "    ... ok\n");
@@ -206,19 +200,17 @@ int main(int argc, char **argv) {
 			fprintf(stdout, "\n");
 			fprintf(stdout, " => make point-cloud topic publisher\n");
 
-			if( !node_config.coordinate_name.value ){
-				fprintf(stderr, "    ... error: coordinate name is null\n");
-				fprintf(stderr, "        usage: fill \"%s\" item in configuration file\n", node_config.coordinate_name.item);
+			if( !node_config.topic_name_pointcloud.value[0] ){
+				fprintf(stderr, "    ... error: point-cloud on coordinate topic name is null\n");
+				fprintf(stderr, "        usage: fill \"%s\" item in configuration file\n", node_config.topic_name_pointcloud.item);
 				ros::shutdown();
 			}
 			else {
-				sprintf(topic_name_pointcloud, "%s/%s", node_config.coordinate_name.value, node_config.topic_name_laserscan.value);
-
-				pub_pointcloud = nh_ros.advertise<msg_pointcloud_t>(topic_name_pointcloud, 400);
+				pub_pointcloud = nh_ros.advertise<msg_pointcloud_t>(node_config.topic_name_pointcloud.value, 40);
 
 				msg_pointcloud.header.seq = 0;
 				msg_pointcloud.header.stamp = time_start;
-				msg_pointcloud.header.frame_id = node_config.coordinate_name.value;
+				msg_pointcloud.header.frame_id = node_config.topic_name_pointcloud.value;
 
 				msg_pointcloud.points.clear();
 				msg_pointcloud.channels.resize(1);
@@ -238,13 +230,13 @@ int main(int argc, char **argv) {
 
 			topic_areas.resize(node_config.areas.size());
 			for( i = 0; i < (signed)node_config.areas.size(); i++ ) {
-				sprintf(topic_areas[i].name, "%s/%s", topic_name_pointcloud, node_config.areas[i].name);
+				sprintf(topic_areas[i].name, "%s/%s", node_config.topic_name_pointcloud.value, node_config.areas[i].name);
 
 				topic_areas[i].pub = nh_ros.advertise<msg_pointcloud_t>(topic_areas[i].name, 400);
 
 				topic_areas[i].msg.header.seq = 0;
 				topic_areas[i].msg.header.stamp = time_start;
-				topic_areas[i].msg.header.frame_id = node_config.coordinate_name.value;
+				topic_areas[i].msg.header.frame_id = node_config.topic_name_pointcloud.value;
 
 				topic_areas[i].msg.points.clear();
 				topic_areas[i].msg.channels.resize(1);
@@ -324,7 +316,7 @@ int main(int argc, char **argv) {
 
 						// error
 						if( msg_laserscan.ranges[i] < msg_laserscan.range_min ||
-							msg_laserscan.ranges[i] > msg_laserscan.range_max) {
+								msg_laserscan.ranges[i] > msg_laserscan.range_max) {
 							continue;
 						}
 
@@ -361,11 +353,11 @@ int main(int argc, char **argv) {
 							if( k < (signed)node_config.areas[j].range.size() ) continue;
 							for( k = 0; k < (signed)node_config.areas[j].exception.size(); k++ ){
 								if( ws_point.x < node_config.areas[j].range[k].upper[0] &&
-									ws_point.x > node_config.areas[j].range[k].lower[0]) break;
+										ws_point.x > node_config.areas[j].range[k].lower[0]) break;
 								if( ws_point.y < node_config.areas[j].range[k].upper[1] &&
-									ws_point.y > node_config.areas[j].range[k].lower[1]) break;
+										ws_point.y > node_config.areas[j].range[k].lower[1]) break;
 								if( ws_point.z < node_config.areas[j].range[k].upper[2] &&
-									ws_point.z > node_config.areas[j].range[k].lower[2]) break;
+										ws_point.z > node_config.areas[j].range[k].lower[2]) break;
 							}
 							if( k < (signed)node_config.areas[j].exception.size() ) continue;
 
@@ -410,7 +402,7 @@ int main(int argc, char **argv) {
 
 				nline_display++; fprintf(stderr, "\x1b[K-------------------- \x1b[1m\x1b[36m%s\x1b[39m\x1b[0m --------------------\n", node_config.node_name.value);
 				nline_display++; fprintf(stderr, "\x1b[K operating time : %6.01lf[sec]\n", time_current - time_start);
-				nline_display++; fprintf(stderr, "\x1b[K    point cloud : topic name \"%s\" (publish)\n", topic_name_pointcloud );
+				nline_display++; fprintf(stderr, "\x1b[K    point cloud : topic name \"%s\" (publish)\n", node_config.topic_name_pointcloud.value );
 				nline_display++; fprintf(stderr, "\x1b[K                :       size %3d [num]\n", msg_pointcloud.points.size() );
 				nline_display++; fprintf(stderr, "\x1b[K                :  intensity %s\n", msg_pointcloud.channels[0].values.size() == msg_pointcloud.points.size() ? "on" : "off" );
 				nline_display++; fprintf(stderr, "\x1b[K                :        seq %d\n", msg_pointcloud.header.seq );

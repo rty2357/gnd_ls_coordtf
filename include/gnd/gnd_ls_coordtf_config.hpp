@@ -46,10 +46,10 @@ namespace gnd {
 				"laser scan topic name"
 		};
 
-		static const param_string_t Default_coordinate_name = {
-				"coordinate-name",
-				"coord_foo",
-				"coordinate name, if you set <coordinate-name>, gnd_ls_coordtf publish PointCloud message named <coordinate-name>/<laser scan topic>"
+		static const param_string_t Default_topic_name_pointclouds_on_coordinate = {
+				"topic-name-pointcloud-on-coordinate",
+				"coordinate/scan",
+				"ros topic name laser-scan's reflection point-cloud on defined coordinate (publish, sensor_msgs::PointCloud)"
 		};
 		// <--- ros communicate option
 
@@ -174,7 +174,7 @@ namespace gnd {
 			// ros communication
 			param_string_t					node_name;					///< node name
 			param_string_t					topic_name_laserscan;		///< topic name of laser scan (publish)
-			param_string_t					coordinate_name;			///< coordinate name
+			param_string_t					topic_name_pointcloud;			///< coordinate name
 
 			// coordinate option
 			param_geo3d_t					coordinate_origin;			///< coordinate origin
@@ -242,13 +242,13 @@ namespace gnd {
 			gnd_assert(!p, -1, "invalid null pointer argument\n" );
 
 			// ros communication parameter
-			memcpy( &p->node_name,				&Default_node_name,				sizeof(Default_node_name) );
-			memcpy( &p->topic_name_laserscan,	&Default_topic_name_laserscan,	sizeof(Default_topic_name_laserscan) );
-			memcpy( &p->coordinate_name,		&Default_coordinate_name,		sizeof(Default_coordinate_name) );
+			memcpy( &p->node_name,				&Default_node_name,								sizeof(Default_node_name) );
+			memcpy( &p->topic_name_laserscan,	&Default_topic_name_laserscan,					sizeof(Default_topic_name_laserscan) );
+			memcpy( &p->topic_name_pointcloud,	&Default_topic_name_pointclouds_on_coordinate,	sizeof(Default_topic_name_pointclouds_on_coordinate) );
 			// hard-ware parameter
-			memcpy( &p->coordinate_origin,		&Default_coordinate_origin,		sizeof(Default_coordinate_origin) );
-			memcpy( &p->axis_vector_front,		&Default_axis_vector_front,		sizeof(Default_axis_vector_front) );
-			memcpy( &p->axis_vector_upside,		&Default_axis_vector_upside,	sizeof(Default_axis_vector_upside) );
+			memcpy( &p->coordinate_origin,		&Default_coordinate_origin,						sizeof(Default_coordinate_origin) );
+			memcpy( &p->axis_vector_front,		&Default_axis_vector_front,						sizeof(Default_axis_vector_front) );
+			memcpy( &p->axis_vector_upside,		&Default_axis_vector_upside,					sizeof(Default_axis_vector_upside) );
 
 			{ // ---> areas
 				_area_rectangle_t area_;
@@ -303,7 +303,7 @@ namespace gnd {
 			// ros communication parameter
 			gnd::conf::get_parameter( src, &dest->node_name );
 			gnd::conf::get_parameter( src, &dest->topic_name_laserscan );
-			gnd::conf::get_parameter( src, &dest->coordinate_name );
+			gnd::conf::get_parameter( src, &dest->topic_name_pointcloud );
 			// coordinate option
 			gnd::conf::get_parameter( src, &dest->coordinate_origin );
 			gnd::conf::get_parameter( src, &dest->axis_vector_front );
@@ -425,7 +425,7 @@ namespace gnd {
 			// ros communication parameter
 			gnd::conf::set_parameter( dest, &src->node_name );
 			gnd::conf::set_parameter( dest, &src->topic_name_laserscan );
-			gnd::conf::set_parameter( dest, &src->coordinate_name );
+			gnd::conf::set_parameter( dest, &src->topic_name_pointcloud );
 			// coordinate option
 			gnd::conf::set_parameter( dest, &src->coordinate_origin );
 			gnd::conf::set_parameter( dest, &src->axis_vector_front );
