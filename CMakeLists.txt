@@ -49,6 +49,8 @@ add_executable(gnd_ls_coordtf src/gnd_ls_coordtf.cpp)
 target_link_libraries(gnd_ls_coordtf ${catkin_LIBRARIES})
 install(TARGETS gnd_ls_coordtf 
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+add_dependencies(gnd_ls_coordtf sensor_msgs_generate_messages_cpp gnd_msgs_generate_messages_cpp)
+  
 
 ##############################################################################
 # Test
